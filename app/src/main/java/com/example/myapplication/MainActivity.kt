@@ -13,7 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.RealmOOMAnalyzerTheme
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MemoryTestViewModel by viewModels()
@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            RealmOOMAnalyzerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MemoryTestScreen(
                         viewModel = viewModel,

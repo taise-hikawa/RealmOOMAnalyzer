@@ -1,4 +1,4 @@
-# MyApplication - OOM検証プロジェクト
+# RealmOOMAnalyzer - OOM検証プロジェクト
 
 ## プロジェクト概要
 Realm Java使用時のOutOfMemoryError (OOM) 問題を検証・再現するためのテストアプリケーション。
@@ -8,7 +8,7 @@ Realm Java使用時のOutOfMemoryError (OOM) 問題を検証・再現するた�
 ```
 Fatal Exception: java.lang.OutOfMemoryError: Failed to allocate a 40 byte allocation with 1302880 free bytes and 1272KB until OOM, target footprint 201326592, growth limit 201326592; giving up on allocation because <1% of heap free after GC.
 at kotlin.collections.CollectionsKt___CollectionsKt.toList(_Collections.kt:1316)
-at jp.co.spacely.phototask.domain.model.Task.<init>(Task.kt:180)
+at com.example.app.domain.model.Task.<init>(Task.kt:180)
 ```
 
 ## 現在の実装状況
