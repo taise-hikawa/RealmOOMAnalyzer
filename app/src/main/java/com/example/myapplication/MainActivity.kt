@@ -88,7 +88,7 @@ fun MemoryTestScreen(
                 enabled = !isRunning,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("4. Task一覧取得 (OOM再現)")
+                Text("4. Task一覧取得 (バックグラウンド)")
             }
             
             Button(
@@ -100,11 +100,19 @@ fun MemoryTestScreen(
             }
             
             Button(
+                onClick = { viewModel.getAllTasksOnMainThread() },
+                enabled = !isRunning,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("6. Task一覧取得 (メインスレッド)")
+            }
+            
+            Button(
                 onClick = { viewModel.showMemoryUsage() },
                 enabled = !isRunning,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("6. メモリ使用量表示")
+                Text("7. メモリ使用量表示")
             }
         }
         

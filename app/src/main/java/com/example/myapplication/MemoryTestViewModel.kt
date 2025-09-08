@@ -18,6 +18,7 @@ import io.realm.RealmChangeListener
 import io.realm.RealmResults
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -80,7 +81,7 @@ class MemoryTestViewModel : ViewModel() {
                     val task = r.createObject(TaskStorage::class.java, i.toLong())
 
                     // Add 5 duplicate ImageTitlesStorage objects
-                    for (j in 1..50) {
+                    for (j in 1..100) {
                         val imageTitle = r.createObject(ImageTitlesStorage::class.java).apply {
                             title = "リビング"
                             category = "Inside"
@@ -210,97 +211,127 @@ class MemoryTestViewModel : ViewModel() {
         }
     }
     
+    private suspend fun performTaskRetrieval(
+        realmInstance: Realm,
+        threadName: String
+    ) {
+        val hasDuplicateData = realmInstance.where(TaskStorage::class.java).count() > 0
+        val hasNormalizedData = realmInstance.where(TaskStorageWithKey::class.java).count() > 0
+        
+        if (!hasDuplicateData && !hasNormalizedData) {
+            log("No data found to retrieve")
+            return
+        }
+        
+        var crashOccurred = false
+        
+        for (i in 1..TEST_ITERATIONS) {
+            if (crashOccurred) break
+            
+            log("--- Retrieval #$i/$TEST_ITERATIONS ($threadName) ---")
+            val startTime = System.currentTimeMillis()
+            
+            try {
+                when {
+                    hasDuplicateData -> {
+                        val tasks = realmInstance.where(TaskStorage::class.java)
+                            .findAll()
+                            .map(::Task)
+                        
+                        log("#$i: Retrieved ${tasks.size} tasks from duplicate data")
+                        
+                        // Count total objects created
+                        var totalImageTitles = 0
+                        tasks.forEach { task ->
+                            totalImageTitles += task.imageTitles.size
+                        }
+                        log("#$i: Total TaskImageTitles objects created: $totalImageTitles")
+                    }
+                    hasNormalizedData -> {
+                        val tasks = realmInstance.where(TaskStorageWithKey::class.java)
+                            .findAll()
+                            .map(::Task)
+                        
+                        log("#$i: Retrieved ${tasks.size} tasks from normalized data")
+                        
+                        // Count total objects created
+                        var totalImageTitles = 0
+                        tasks.forEach { task ->
+                            totalImageTitles += task.imageTitles.size
+                        }
+                        log("#$i: Total TaskImageTitles objects created: $totalImageTitles")
+                    }
+                }
+                
+                val endTime = System.currentTimeMillis()
+                log("#$i: Completed in ${endTime - startTime}ms")
+                
+                // Log memory every 5 iterations
+                if (i % 5 == 0) {
+                    logMemory("After iteration $i")
+                }
+                
+            } catch (e: OutOfMemoryError) {
+                log("⚠️ OutOfMemoryError occurred at iteration #$i!")
+                log("Error: ${e.message}")
+                crashOccurred = true
+            } catch (e: Exception) {
+                log("⚠️ Exception occurred at iteration #$i: ${e.message}")
+                crashOccurred = true
+            }
+            
+            // Small delay to prevent complete UI freeze
+            delay(50)
+        }
+        
+        // Force GC and log memory again
+        System.gc()
+        delay(100)
+        logMemory("After manual GC")
+    }
+
     fun getAllTasks() {
         viewModelScope.launch(Dispatchers.IO) {
             isRunning.value = true
-            log("=== Starting $TEST_ITERATIONS continuous task retrievals ===")
+            log("=== Starting $TEST_ITERATIONS continuous task retrievals (Background Thread) ===")
             logMemory("Before continuous retrievals")
             
             val overallStartTime = System.currentTimeMillis()
             val backgroundRealm = Realm.getDefaultInstance()
             
-            val hasDuplicateData = backgroundRealm.where(TaskStorage::class.java).count() > 0
-            val hasNormalizedData = backgroundRealm.where(TaskStorageWithKey::class.java).count() > 0
-            
-            if (!hasDuplicateData && !hasNormalizedData) {
-                log("No data found to retrieve")
-                backgroundRealm.close()
-                isRunning.value = false
-                return@launch
-            }
-            
-            var crashOccurred = false
-            
-            for (i in 1..TEST_ITERATIONS) {
-                if (crashOccurred) break
-                
-                log("--- Retrieval #$i/$TEST_ITERATIONS ---")
-                val startTime = System.currentTimeMillis()
-                
-                try {
-                    when {
-                        hasDuplicateData -> {
-                            val tasks = backgroundRealm.where(TaskStorage::class.java)
-                                .findAll()
-                                .map(::Task)
-                            
-                            log("#$i: Retrieved ${tasks.size} tasks from duplicate data")
-                            
-                            // Count total objects created
-                            var totalImageTitles = 0
-                            tasks.forEach { task ->
-                                totalImageTitles += task.imageTitles.size
-                            }
-                            log("#$i: Total TaskImageTitles objects created: $totalImageTitles")
-                        }
-                        hasNormalizedData -> {
-                            val tasks = backgroundRealm.where(TaskStorageWithKey::class.java)
-                                .findAll()
-                                .map(::Task)
-                            
-                            log("#$i: Retrieved ${tasks.size} tasks from normalized data")
-                            
-                            // Count total objects created
-                            var totalImageTitles = 0
-                            tasks.forEach { task ->
-                                totalImageTitles += task.imageTitles.size
-                            }
-                            log("#$i: Total TaskImageTitles objects created: $totalImageTitles")
-                        }
-                    }
-                    
-                    val endTime = System.currentTimeMillis()
-                    log("#$i: Completed in ${endTime - startTime}ms")
-                    
-                    // Log memory every 5 iterations
-                    if (i % 5 == 0) {
-                        logMemory("After iteration $i")
-                    }
-                    
-                } catch (e: OutOfMemoryError) {
-                    log("⚠️ OutOfMemoryError occurred at iteration #$i!")
-                    log("Error: ${e.message}")
-                    crashOccurred = true
-                } catch (e: Exception) {
-                    log("⚠️ Exception occurred at iteration #$i: ${e.message}")
-                    crashOccurred = true
-                }
-                
-                // Small delay to prevent complete UI freeze
-                Thread.sleep(50)
-            }
+            performTaskRetrieval(backgroundRealm, "Background Thread")
             
             val overallEndTime = System.currentTimeMillis()
             log("=== Continuous retrieval completed ===")
             log("Total time: ${overallEndTime - overallStartTime}ms")
             logMemory("After all retrievals")
             
-            // Force GC and log memory again
-            System.gc()
-            Thread.sleep(100)
-            logMemory("After final GC")
-            
             backgroundRealm.close()
+            isRunning.value = false
+        }
+    }
+    
+    fun getAllTasksOnMainThread() {
+        viewModelScope.launch {
+            isRunning.value = true
+            log("=== Starting $TEST_ITERATIONS continuous task retrievals (Main Thread) ===")
+            logMemory("Before continuous retrievals")
+            
+            val overallStartTime = System.currentTimeMillis()
+            // Use the existing realm instance for main thread
+            val mainRealm = realm ?: Realm.getDefaultInstance()
+            
+            performTaskRetrieval(mainRealm, "Main Thread")
+            
+            val overallEndTime = System.currentTimeMillis()
+            log("=== Continuous retrieval completed ===")
+            log("Total time: ${overallEndTime - overallStartTime}ms")
+            logMemory("After all retrievals")
+            
+            // Don't close mainRealm if it's the instance realm
+            if (realm == null) {
+                mainRealm.close()
+            }
             isRunning.value = false
         }
     }
